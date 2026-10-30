@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小影一键成片Demo</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #fff; overflow-x: hidden; }
+
+#modeBar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #111; padding: 12px; display: flex; justify-content: center; gap: 12px;
+  border-bottom: 1px solid #333;
+}
+#modeBar button {
+  padding: 10px 24px; border: 2px solid #444; border-radius: 20px;
+  background: transparent; color: #888; font-size: 14px; cursor: pointer;
+}
+#modeBar button.active { border-color: #FF6B00; background: #FF6B00; color: #fff; font-weight: 600; }
+
+#manualMode {
+  display: flex; justify-content: center; padding: 70px 20px 20px;
+  min-height: 100vh;
+}
+#phoneShell {
+  width: 390px; height: 800px; background: #000; border-radius: 36px;
+  overflow: hidden; box-shadow: 0 0 0 2px #333, 0 20px 60px rgba(0,0,0,.6);
+  position: relative;
+}
+#phoneScreen {
+  width: 100%; height: 100%; background: #111; position: relative; overflow: hidden;
+}
+
+#autoMode {
+  display: none; flex-direction: column; align-items: center;
+  padding: 70px 20px 20px; min-height: 100vh;
+}
+#autoPhone {
+  width: 375px; height: 780px; background: #000; border-radius: 40px;
+  padding: 10px; box-shadow: 0 0 0 2px #333, 0 20px 60px rgba(0,0,0,.6);
+  position: relative;
+}
+#autoScreen {
+  width: 100%; height: 100%; background: #111; border-radius: 32px;
+  overflow: hidden; position: relative;
+}
+
+.page { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; }
+.page.active { display: flex; flex-direction: column; }
+
+.statusBar { display: flex; justify-content: space-between; padding: 10px 20px 4px; font-size: 12px; color: #999; flex-shrink: 0; }
+.statusBar .time { font-weight: 700; color: #fff; font-size: 14px; }
+
+.navBar { display: flex; align-items: center; padding: 8px 16px 12px; flex-shrink: 0; }
+.navBar .back { font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0; }
+.navBar .title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; margin-right: 36px; }
+
+.sectionTitle { font-size: 14px; font-weight: 600; padding: 12px 20px 8px; flex-shrink: 0; }
+.aspectRow { display: flex; gap: 10px; padding: 0 20px 12px; flex-shrink: 0; }
+.aspectCard {
+  flex: 1; aspect-ratio: 4/3; border: 2px solid #333; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; background: #1a1a1a;
+}
+.aspectCard.active { border-color: #FF6B00; background: rgba(255,107,0,.08); }
+.aspectCard .label { font-size: 13px; font-weight: 600; }
+.aspectCard .ratio { font-size: 11px; color: #888; }
+.aspectCard.active .label, .aspectCard.active .ratio { color: #FF6B00; }
+
+.durationRow { display: flex; gap: 8px; padding: 0 20px 12px; flex-shrink: 0; }
+.durBtn {
+  flex: 1; padding: 10px 6px; border: 2px solid #333; border-radius: 8px;
+  text-align: center; font-size: 13px; cursor: pointer; background: #1a1a1a;
+}
+.durBtn.active { border-color: #FF6B00; color: #FF6B00; background: rgba(255,107,0,.08); }
+
+.themeGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 20px 16px; flex-shrink: 0; }
+.themeItem { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.themeThumb {
+  width: 100%; aspect-ratio: 4/3; border-radius: 8px; border: 2px solid transparent;
+  background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.themeItem.active .themeThumb { border-color: #FF6B00; }
+.themeLabel { font-size: 10px; color: #888; }
+.themeItem.active .themeLabel { color: #FF6B00; }
+
+#uploadBtnWrap { padding: 0 20px; margin-top: 10px; flex-shrink: 0; }
+#uploadBtn {
+  width: 100%; padding: 16px; background: linear-gradient(135deg, #FF6B00, #FF8C00);
+  border: none; border-radius: 12px; color: #fff; font-size: 16px; font-weight: 600;
+  cursor: pointer;
+}
+
+/* 草稿页面 */
+#pageDraft { overflow: hidden; }
+.draftHint { text-align: center; padding: 4px 20px 12px; color: #666; font-size: 13px; flex-shrink: 0; }
+.draftCardsWrap { flex: 1; overflow-y: auto; padding: 0 16px; }
+.draftCard {
+  background: #1e1e1e; border-radius: 14px; padding: 12px; margin-bottom: 10px;
+}
+.dcHeader { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dcTag { font-size: 13px; font-weight: 700; }
+.dcMats { display: flex; gap: 6px; margin-bottom: 8px; }
+.dcMat { width: 40px; height: 40px; border-radius: 8px; background: #333; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.dcText { font-size: 13px; color: #ccc; margin-bottom: 6px; }
+.dcMeta { display: flex; gap: 12px; font-size: 11px; color: #555; margin-bottom: 8px; }
+.dcActions { display: flex; gap: 8px; }
+.dcActionBtn {
+  padding: 5px 10px; background: transparent; border: 1px solid #FF6B00;
+  border-radius: 5px; color: #FF6B00; font-size: 11px; cursor: pointer;
+}
+.dcActionBtn:active { background: #FF6B00; color: #fff; }
+
+.genBtnWrap { padding: 12px 16px 20px; background: linear-gradient(transparent, #111 30%); flex-shrink: 0; }
+.genBtn {
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #FF6B00, #FF8C00);
+  border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+
+.loadingPage { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 16px; }
+.spinner { width: 60px; height: 60px; border: 3px solid #333; border-top-color: #FF6B00; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 编辑页面 - 保存和AI优化同一排 */
+#pageEditText { overflow: hidden; }
+.editContent { flex: 1; padding: 0 16px; overflow-y: auto; display: flex; flex-direction: column; }
+.editLabel { font-size: 12px; color: #888; margin-bottom: 6px; flex-shrink: 0; }
+.editTextarea {
+  width: 100%; height: 50px; background: #2a2a2a; border: 1.5px solid #333;
+  border-radius: 10px; padding: 10px; color: #fff; font-size: 14px; resize: none;
+  font-family: inherit; margin-bottom: 8px; flex-shrink: 0;
+}
+.editTextarea:focus { outline: none; border-color: #FF6B00; }
+
+.aiSuggestTitle { font-size: 11px; color: #888; margin-bottom: 6px; flex-shrink: 0; }
+.aiSuggestList { flex-shrink: 0; }
+.aiSuggestItem {
+  padding: 8px 10px; background: #2a2a2a; border-radius: 8px; margin-bottom: 5px;
+  font-size: 12px; cursor: pointer;
+}
+.aiSuggestItem:active { background: #333; }
+
+/* AI优化和保存同一排 */
+.bottomBtnRow {
+  display: flex; gap: 10px; margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid #333; flex-shrink: 0;
+}
+.aiOptimizeBtn {
+  flex: 1; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.saveBtnInline {
+  flex: 1; padding: 10px; background: #FF6B00;
+  border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+
+.aiQuickRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; flex-shrink: 0; }
+.aiQuickTag {
+  padding: 5px 10px; background: #2a2a2a; border-radius: 14px; font-size: 10px;
+  color: #aaa; cursor: pointer;
+}
+.aiQuickTag:active { background: rgba(102,126,234,.3); color: #667eea; }
+</style>
+</head>
+<body>
+
+<div id="modeBar">
+  <button id="btnManual" class="active" onclick="switchToManual()">📱 手动操作</button>
+  <button id="btnAuto" onclick="switchToAuto()">▶ 自动演示</button>
+</div>
+
+<div id="manualMode">
+  <div id="phoneShell">
+    <div id="phoneScreen">
+      <div class="statusBar">
+        <span class="time">10:41</span>
+        <span>5G 69%</span>
+      </div>
+
+      <!-- 主界面 -->
+      <div class="page active" id="pageHome">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px">
+          <div style="display:flex;gap:10px">
+            <div style="width:34px;height:34px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center">👤</div>
+            <div style="width:34px;height:34px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center">⚙️</div>
+          </div>
+          <div style="padding:6px 14px;background:#2a2a2a;border-radius:18px;font-size:12px">进群学剪辑</div>
+          <div style="padding:6px 14px;background:linear-gradient(135deg,#FFD700,#FFA500);border-radius:18px;font-size:12px;font-weight:700;color:#000">👑 订阅</div>
+        </div>
+
+        <div style="display:flex;justify-content:space-around;padding:16px 10px">
+          <div style="text-align:center;cursor:pointer" onclick="showPage('pageYjp')">
+            <div style="width:52px;height:52px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:22px">🎨</div>
+            <div style="font-size:11px;color:#999">一键成片</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:52px;height:52px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:22px">✏️</div>
+            <div style="font-size:11px;color:#999">文字涂鸦</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:52px;height:52px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:22px">⭕</div>
+            <div style="font-size:11px;color:#999">闪光灯</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:52px;height:52px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:20px;font-weight:700">T</div>
+            <div style="font-size:11px;color:#999">字幕</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:52px;height:52px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:16px;font-weight:700">HD</div>
+            <div style="font-size:11px;color:#999">修复</div>
+          </div>
+        </div>
+
+        <div style="margin:0 16px 16px;padding:36px;background:linear-gradient(135deg,#FF6B00,#FF8C00);border-radius:14px;text-align:center;cursor:pointer" onclick="showPage('pageYjp')">
+          <div style="width:44px;height:44px;background:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:26px">+</div>
+          <div style="font-size:17px;font-weight:700">开始剪辑</div>
+        </div>
+
+        <div style="padding:0 16px">
+          <div style="font-size:17px;font-weight:700;margin-bottom:12px">我的项目 2</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="height:110px;background:#2a2a2a;border-radius:10px;position:relative">
+              <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:3px;font-size:10px">00:06</div>
+            </div>
+            <div style="height:110px;background:#2a2a2a;border-radius:10px;position:relative">
+              <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:3px;font-size:10px">00:07</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 一键成片页 -->
+      <div class="page" id="pageYjp">
+        <div class="navBar">
+          <div class="back" onclick="showPage('pageHome')">‹</div>
+          <div class="title">一键成片</div>
+        </div>
+
+        <div class="sectionTitle">影片画幅</div>
+        <div class="aspectRow">
+          <div class="aspectCard active" onclick="selectAspect(this)">
+            <div class="label">竖屏</div>
+            <div class="ratio">9:16</div>
+          </div>
+          <div class="aspectCard" onclick="selectAspect(this)">
+            <div class="label">横屏</div>
+            <div class="ratio">16:9</div>
+          </div>
+        </div>
+
+        <div class="sectionTitle">影片最大长度</div>
+        <div class="durationRow">
+          <div class="durBtn" onclick="selectDur(this)">15秒</div>
+          <div class="durBtn active" onclick="selectDur(this)">30秒</div>
+          <div class="durBtn" onclick="selectDur(this)">60秒</div>
+          <div class="durBtn" onclick="selectDur(this)">90秒</div>
+        </div>
+
+        <div class="sectionTitle">影片主题</div>
+        <div class="themeGrid">
+          <div class="themeItem active" onclick="selectTheme(this)"><div class="themeThumb">⊞</div><div class="themeLabel">通用</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb"></div><div class="themeLabel">日常</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">💑</div><div class="themeLabel">情侣</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">👶</div><div class="themeLabel">萌娃</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">‍👩‍</div><div class="themeLabel">家庭</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">🎂</div><div class="themeLabel">生日</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">⛷️</div><div class="themeLabel">运动</div></div>
+          <div class="themeItem" onclick="selectTheme(this)"><div class="themeThumb">🏔️</div><div class="themeLabel">自然</div></div>
+        </div>
+
+        <div id="uploadBtnWrap">
+          <button id="uploadBtn" onclick="startUpload()">上传照片或视频</button>
+        </div>
+      </div>
+
+      <!-- AI解析页 -->
+      <div class="page" id="pageLoading">
+        <div class="loadingPage">
+          <div class="spinner"></div>
+          <div style="font-size:16px;font-weight:600">AI正在分析素材...</div>
+          <div style="font-size:13px;color:#666" id="loadingText">识别场景、人物、情感</div>
+        </div>
+      </div>
+
+      <!-- 判断草稿页 -->
+      <div class="page" id="pageDraft">
+        <div class="navBar">
+          <div class="back" onclick="showPage('pageHome')">‹</div>
+          <div class="title">确认视频结构</div>
+        </div>
+        <div class="draftHint">AI已为你编排好素材</div>
+        <div class="draftCardsWrap" id="draftCards"></div>
+        <div class="genBtnWrap">
+          <button class="genBtn" onclick="showPage('pageGen')">生成视频 →</button>
+        </div>
+      </div>
+
+      <!-- 编辑文案页 -->
+      <div class="page" id="pageEditText">
+        <div class="navBar">
+          <div class="back" onclick="showPage('pageDraft')">‹</div>
+          <div class="title">修改文案</div>
+        </div>
+        <div class="editContent">
+          <div class="editLabel">当前文案</div>
+          <textarea class="editTextarea" id="textareaText" placeholder="输入文案..."></textarea>
+
+          <div class="aiSuggestTitle">💡 AI建议文案</div>
+          <div class="aiSuggestList" id="suggestList"></div>
+
+          <!-- AI优化和保存同一排 -->
+          <div class="bottomBtnRow">
+            <button class="aiOptimizeBtn" onclick="showAIOptimize()">✨ AI智能优化</button>
+            <button class="saveBtnInline" onclick="saveEdit()">保存</button>
+          </div>
+
+          <div class="aiQuickRow">
+            <div class="aiQuickTag" onclick="applyQuick('更文艺')">更文艺</div>
+            <div class="aiQuickTag" onclick="applyQuick('更活泼')">更活泼</div>
+            <div class="aiQuickTag" onclick="applyQuick('更简洁')">更简洁</div>
+            <div class="aiQuickTag" onclick="applyQuick('更口语化')">更口语化</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 生成进度页 -->
+      <div class="page" id="pageGen">
+        <div class="loadingPage">
+          <div class="spinner"></div>
+          <div style="font-size:16px;font-weight:600">正在生成视频...</div>
+          <div style="font-size:13px;color:#666">添加转场、特效、字幕</div>
+        </div>
+      </div>
+
+      <!-- 成片页 -->
+      <div class="page" id="pageResult">
+        <div class="navBar">
+          <div class="back" onclick="showPage('pageHome')">‹</div>
+          <div class="title">成片预览</div>
+        </div>
+        <div style="width:calc(100% - 32px);margin:0 16px 20px;aspect-ratio:9/16;background:#000;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:56px">▶️</div>
+        <div style="display:flex;gap:10px;padding:0 16px">
+          <button style="flex:1;padding:14px;background:#2a2a2a;border:none;border-radius:12px;color:#fff;font-size:14px">换主题</button>
+          <button style="flex:1;padding:14px;background:#2a2a2a;border:none;border-radius:12px;color:#fff;font-size:14px">微调</button>
+          <button style="flex:1;padding:14px;background:#FF6B00;border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:600">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="autoMode">
+  <div id="autoPhone">
+    <div id="autoScreen"></div>
+  </div>
+</div>
+
+<script>
+let currentCardIdx = -1;
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'pageDraft') renderDraft();
+  if (id === 'pageGen') setTimeout(() => showPage('pageResult'), 3000);
+}
+
+function selectAspect(el) {
+  el.parentElement.querySelectorAll('.aspectCard').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+function selectDur(el) {
+  el.parentElement.querySelectorAll('.durBtn').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+function selectTheme(el) {
+  el.parentElement.querySelectorAll('.themeItem').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function startUpload() {
+  showPage('pageLoading');
+  const texts = ['识别场景、人物、情感', '分析画面质量和构图', '提取核心内容和卖点', '智能分组和叙事编排'];
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    if (i < texts.length) {
+      document.getElementById('loadingText').textContent = texts[i];
+    } else {
+      clearInterval(timer);
+      showPage('pageDraft');
+    }
+  }, 800);
+}
+
+function renderDraft() {
+  const cards = [
+    {icon:'',label:'钩子',color:'#FF4444',mats:['🎬','️'],text:'出发！去大理',dur:3},
+    {icon:'💡',label:'展示',color:'#4169E1',mats:['🌊','👤','','🎬'],text:'古镇的每一个角落',dur:10},
+    {icon:'',label:'情感',color:'#9370DB',mats:['🌄','👫','🎬'],text:'日落时分的温暖',dur:6},
+    {icon:'📢',label:'号召',color:'#228B22',mats:['🍣','🌊'],text:'下次，还来这里',dur:4}
+  ];
+  document.getElementById('draftCards').innerHTML = cards.map((c, idx) => `
+    <div class="draftCard">
+      <div class="dcHeader"><div class="dcTag" style="color:${c.color}">${c.icon} ${c.label}</div></div>
+      <div class="dcMats">${c.mats.map(m => `<div class="dcMat">${m}</div>`).join('')}</div>
+      <div class="dcText">"${c.text}"</div>
+      <div class="dcMeta"><span>🎵 轻快旅行</span><span>⏱️ ${c.dur}秒</span></div>
+      <div class="dcActions">
+        <button class="dcActionBtn" onclick="openEditPage(${idx}, '${c.text}')">编辑</button>
+        <button class="dcActionBtn" onclick="alert('换素材功能')">换素材</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openEditPage(idx, text) {
+  currentCardIdx = idx;
+  document.getElementById('textareaText').value = text;
+  const suggs = ['最美的风景在路上', '说走就走的旅行'];
+  document.getElementById('suggestList').innerHTML = suggs.map(s => 
+    `<div class="aiSuggestItem" onclick="useSuggestion('${s}')">${s}</div>`
+  ).join('');
+  showPage('pageEditText');
+}
+
+function useSuggestion(text) {
+  document.getElementById('textareaText').value = text;
+}
+
+function showAIOptimize() {
+  alert('AI优化功能：描述你的需求，AI自动优化文案');
+}
+
+function applyQuick(type) {
+  const texts = {
+    '更文艺': '心之所向，素履以往',
+    '更活泼': '出发啦！一起去大理玩～',
+    '更简洁': '去大理',
+    '更口语化': '走，咱们去大理逛逛'
+  };
+  document.getElementById('textareaText').value = texts[type] || '优化后的文案';
+}
+
+function saveEdit() {
+  showPage('pageDraft');
+}
+
+function switchToManual() {
+  document.getElementById('btnManual').classList.add('active');
+  document.getElementById('btnAuto').classList.remove('active');
+  document.getElementById('manualMode').style.display = 'flex';
+  document.getElementById('autoMode').style.display = 'none';
+  stopAutoDemo();
+}
+
+function switchToAuto() {
+  document.getElementById('btnAuto').classList.add('active');
+  document.getElementById('btnManual').classList.remove('active');
+  document.getElementById('manualMode').style.display = 'none';
+  document.getElementById('autoMode').style.display = 'flex';
+  startAutoDemo();
+}
+
+let autoTimer = null;
+let autoStep = 0;
+
+const AUTO_STEPS = [
+  {dur: 1500, render: () => renderAutoYjpHighlight()},
+  {dur: 2500, render: () => renderAutoLoading()},
+  {dur: 4000, render: () => renderAutoDraft()},
+  {dur: 2000, render: () => renderAutoDraftHighlight()},
+  {dur: 4000, render: () => renderAutoEdit()},
+  {dur: 3000, render: () => renderAutoGen()},
+  {dur: 3000, render: () => renderAutoResult()}
+];
+
+function startAutoDemo() {
+  autoStep = 0;
+  playAutoStep();
+}
+
+function playAutoStep() {
+  if (autoStep >= AUTO_STEPS.length) {
+    autoStep = 0;
+  }
+  const step = AUTO_STEPS[autoStep];
+  document.getElementById('autoScreen').innerHTML = step.render();
+  autoTimer = setTimeout(() => {
+    autoStep++;
+    playAutoStep();
+  }, step.dur);
+}
+
+function stopAutoDemo() {
+  clearTimeout(autoTimer);
+}
+
+function renderAutoYjpHighlight() {
+  return `<div style="padding:36px 12px;background:#111;height:100%;overflow-y:auto">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><div style="font-size:18px">‹</div><div style="flex:1;text-align:center;font-size:15px;font-weight:600">一键成片</div></div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">影片画幅</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <div style="flex:1;aspect-ratio:4/3;border:2px solid #FF6B00;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,107,0,.08)"><div style="font-size:13px;font-weight:600;color:#FF6B00">竖屏</div><div style="font-size:11px;color:#FF6B00">9:16</div></div>
+      <div style="flex:1;aspect-ratio:4/3;border:2px solid #333;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1a1a1a"><div style="font-size:13px;color:#888">横屏</div><div style="font-size:11px;color:#666">16:9</div></div>
+    </div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">影片最大长度</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div style="flex:1;padding:10px 4px;border:2px solid #333;border-radius:8px;text-align:center;font-size:12px;background:#1a1a1a">15秒</div>
+      <div style="flex:1;padding:10px 4px;border:2px solid #FF6B00;border-radius:8px;text-align:center;font-size:12px;color:#FF6B00;background:rgba(255,107,0,.08)">30秒</div>
+      <div style="flex:1;padding:10px 4px;border:2px solid #333;border-radius:8px;text-align:center;font-size:12px;background:#1a1a1a">60秒</div>
+      <div style="flex:1;padding:10px 4px;border:2px solid #333;border-radius:8px;text-align:center;font-size:12px;background:#1a1a1a">90秒</div>
+    </div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">影片主题</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px">
+      <div style="text-align:center"><div style="aspect-ratio:4/3;border-radius:8px;border:2px solid #FF6B00;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:18px">⊞</div><div style="font-size:9px;color:#FF6B00;margin-top:3px">通用</div></div>
+      <div style="text-align:center"><div style="aspect-ratio:4/3;border-radius:8px;border:2px solid #333;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:18px"></div><div style="font-size:9px;color:#888;margin-top:3px">日常</div></div>
+      <div style="text-align:center"><div style="aspect-ratio:4/3;border-radius:8px;border:2px solid #333;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:18px">💑</div><div style="font-size:9px;color:#888;margin-top:3px">情侣</div></div>
+      <div style="text-align:center"><div style="aspect-ratio:4/3;border-radius:8px;border:2px solid #333;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:18px">👶</div><div style="font-size:9px;color:#888;margin-top:3px">萌娃</div></div>
+    </div>
+    <div style="padding:16px;background:linear-gradient(135deg,#FF6B00,#FF8C00);border-radius:12px;color:#fff;font-size:15px;font-weight:700;text-align:center;box-shadow:0 0 15px #FF6B00">上传照片或视频</div>
+  </div>`;
+}
+
+function renderAutoLoading() {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px">
+    <div style="width:50px;height:50px;border:3px solid #333;border-top-color:#FF6B00;border-radius:50%;animation:spin .8s linear infinite"></div>
+    <div style="font-size:15px;font-weight:600">AI正在分析素材...</div>
+    <div style="font-size:12px;color:#666">识别场景、人物、情感</div>
+  </div>`;
+}
+
+function renderAutoDraft() {
+  return `<div style="padding:36px 12px 70px;background:#111;height:100%;overflow-y:auto">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:18px">‹</div><div style="flex:1;text-align:center;font-size:15px;font-weight:600">确认视频结构</div></div>
+    <div style="text-align:center;font-size:11px;color:#666;margin-bottom:10px">AI已为你编排好素材</div>
+    ${[
+      {icon:'🎯',label:'钩子',color:'#FF4444',mats:['🎬','🏔️'],text:'出发！去大理',dur:3},
+      {icon:'💡',label:'展示',color:'#4169E1',mats:['','👤','🏯',''],text:'古镇的每一个角落',dur:10},
+      {icon:'🎨',label:'情感',color:'#9370DB',mats:['🌄','👫',''],text:'日落时分的温暖',dur:6}
+    ].map(c => `<div style="background:#1e1e1e;border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="color:${c.color};font-size:13px;font-weight:700">${c.icon} ${c.label}</div></div>
+      <div style="display:flex;gap:5px;margin-bottom:8px">${c.mats.map(m => `<div style="width:36px;height:36px;border-radius:6px;background:#333;display:flex;align-items:center;justify-content:center;font-size:16px">${m}</div>`).join('')}</div>
+      <div style="font-size:12px;color:#ccc;margin-bottom:6px">"${c.text}"</div>
+      <div style="display:flex;gap:12px;font-size:10px;color:#555;margin-bottom:8px"><span>🎵 轻快旅行</span><span>⏱️ ${c.dur}秒</span></div>
+      <div style="display:flex;gap:8px">
+        <div style="padding:5px 10px;border:1px solid #FF6B00;border-radius:5px;color:#FF6B00;font-size:11px">编辑</div>
+        <div style="padding:5px 10px;border:1px solid #FF6B00;border-radius:5px;color:#FF6B00;font-size:11px">换素材</div>
+      </div>
+    </div>`).join('')}
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px 16px;background:linear-gradient(transparent,#111 30%)">
+      <div style="padding:14px;background:linear-gradient(135deg,#FF6B00,#FF8C00);border-radius:12px;color:#fff;font-size:14px;font-weight:700;text-align:center">生成视频 →</div>
+    </div>
+  </div>`;
+}
+
+function renderAutoDraftHighlight() {
+  return `<div style="padding:36px 12px 70px;background:#111;height:100%;overflow-y:auto">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:18px">‹</div><div style="flex:1;text-align:center;font-size:15px;font-weight:600">确认视频结构</div></div>
+    <div style="text-align:center;font-size:11px;color:#666;margin-bottom:10px">点击编辑按钮修改</div>
+    ${[
+      {icon:'',label:'钩子',color:'#FF4444',mats:['🎬','️'],text:'出发！去大理',dur:3,highlight:true},
+      {icon:'',label:'展示',color:'#4169E1',mats:['🌊','','🏯','🎬'],text:'古镇的每一个角落',dur:10},
+      {icon:'🎨',label:'情感',color:'#9370DB',mats:['🌄','👫','🎬'],text:'日落时分的温暖',dur:6}
+    ].map(c => `<div style="background:#1e1e1e;border-radius:12px;padding:12px;margin-bottom:10px;${c.highlight?'border:2px solid #FF6B00;box-shadow:0 0 10px #FF6B00':''}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="color:${c.color};font-size:13px;font-weight:700">${c.icon} ${c.label}</div></div>
+      <div style="display:flex;gap:5px;margin-bottom:8px">${c.mats.map(m => `<div style="width:36px;height:36px;border-radius:6px;background:#333;display:flex;align-items:center;justify-content:center;font-size:16px">${m}</div>`).join('')}</div>
+      <div style="font-size:12px;color:#ccc;margin-bottom:6px">"${c.text}"</div>
+      <div style="display:flex;gap:12px;font-size:10px;color:#555;margin-bottom:8px"><span>🎵 轻快旅行</span><span>⏱️ ${c.dur}秒</span></div>
+      <div style="display:flex;gap:8px">
+        <div style="padding:5px 10px;border:1px solid #FF6B00;border-radius:5px;color:#FF6B00;font-size:11px;${c.highlight?'background:#FF6B00;color:#fff':''}">编辑</div>
+        <div style="padding:5px 10px;border:1px solid #FF6B00;border-radius:5px;color:#FF6B00;font-size:11px">换素材</div>
+      </div>
+    </div>`).join('')}
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px 16px;background:linear-gradient(transparent,#111 30%)">
+      <div style="padding:14px;background:linear-gradient(135deg,#FF6B00,#FF8C00);border-radius:12px;color:#fff;font-size:14px;font-weight:700;text-align:center">生成视频 →</div>
+    </div>
+  </div>`;
+}
+
+function renderAutoEdit() {
+  return `<div style="display:flex;flex-direction:column;height:100%;background:#111">
+    <div style="display:flex;align-items:center;gap:8px;padding:36px 12px 12px">
+      <div style="font-size:18px">‹</div>
+      <div style="flex:1;text-align:center;font-size:15px;font-weight:600">修改文案</div>
+    </div>
+    <div style="flex:1;padding:0 12px;overflow-y:auto">
+      <div style="font-size:11px;color:#888;margin-bottom:6px">当前文案</div>
+      <div style="background:#2a2a2a;border-radius:10px;padding:12px;font-size:14px;margin-bottom:12px;min-height:50px;border:1.5px solid #FF6B00">一周不充电，你敢信？</div>
+      <div style="font-size:11px;color:#888;margin-bottom:8px">💡 AI建议文案</div>
+      <div style="padding:10px;background:#2a2a2a;border-radius:8px;margin-bottom:6px;font-size:12px">最美的风景在路上</div>
+      <div style="padding:10px;background:#2a2a2a;border-radius:8px;margin-bottom:6px;font-size:12px">说走就走的旅行</div>
+      <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #333">
+        <div style="flex:1;padding:10px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:8px;color:#fff;font-size:12px;font-weight:600;text-align:center">✨ AI智能优化</div>
+        <div style="flex:1;padding:10px;background:#FF6B00;border-radius:8px;color:#fff;font-size:12px;font-weight:700;text-align:center">保存</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+        <div style="padding:6px 12px;background:#2a2a2a;border-radius:16px;font-size:10px;color:#aaa">更文艺</div>
+        <div style="padding:6px 12px;background:#2a2a2a;border-radius:16px;font-size:10px;color:#aaa">更活泼</div>
+        <div style="padding:6px 12px;background:#2a2a2a;border-radius:16px;font-size:10px;color:#aaa">更简洁</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAutoGen() {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px">
+    <div style="width:50px;height:50px;border:3px solid #333;border-top-color:#FF6B00;border-radius:50%;animation:spin .8s linear infinite"></div>
+    <div style="font-size:15px;font-weight:600">正在生成视频...</div>
+    <div style="font-size:12px;color:#666">添加转场、特效、字幕</div>
+  </div>`;
+}
+
+function renderAutoResult() {
+  return `<div style="padding:36px 12px;background:#111;height:100%">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><div style="font-size:18px">‹</div><div style="flex:1;text-align:center;font-size:15px;font-weight:600">成片预览</div></div>
+    <div style="width:100%;aspect-ratio:9/14;background:#000;border-radius:12px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;font-size:40px">▶️</div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1;padding:12px;background:#2a2a2a;border-radius:10px;text-align:center;font-size:12px">换主题</div>
+      <div style="flex:1;padding:12px;background:#2a2a2a;border-radius:10px;text-align:center;font-size:12px">微调</div>
+      <div style="flex:1;padding:12px;background:#FF6B00;border-radius:10px;text-align:center;font-size:12px;font-weight:700">保存</div>
+    </div>
+  </div>`;
+}
+
+renderDraft();
+</script>
+</body>
+</html>
